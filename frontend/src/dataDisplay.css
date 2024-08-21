@@ -1,0 +1,70 @@
+/* Réduction générale des tailles */
+.container {
+  font-size: 0.8rem; /* Réduit la taille de la police */
+}
+
+.logo-container {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.logo {
+  width: 100px; /* Réduit la taille du logo */
+  height: auto;
+}
+
+.tables-wrapper {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 10px; /* Réduit l'espacement entre les tableaux */
+}
+
+.group {
+  flex: 1;
+  min-width: 200px; /* Réduit la largeur minimale des groupes */
+  margin: 5px; /* Réduit les marges entre les groupes */
+}
+
+h4, h5 {
+  font-size: 1rem; /* Réduit la taille des titres */
+  margin-bottom: 10px; /* Réduit l'espacement sous les titres */
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem; /* Réduit la taille de la police dans les tableaux */
+}
+
+table th, table td {
+  border: 1px solid #ddd;
+  text-align: left;
+}
+
+table th {
+  background-color: #f4f4f4;
+}
+/* Style spécifique pour la colonne de noms */
+.sensor-name-column {
+  background-color: #e0e0e0; /* Couleur d'arrière-plan différente pour la colonne de noms */
+}
+
+.vertical-text {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  text-align: center;
+}
+.text {
+  text-align: center;
+}
+.logo-container {
+  text-align: center; 
+  margin-top: 10px; 
+}
+
+.logo {
+  width: 150px;
+  height: auto;
+}
+
