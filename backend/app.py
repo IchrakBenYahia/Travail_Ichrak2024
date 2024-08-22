@@ -1,5 +1,5 @@
 import logging
-from flask import Flask, jsonify
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 import mysql.connector
 from pysnmp.hlapi import *
@@ -107,6 +107,10 @@ def get_sensors():
     snmp_data = get_snmp_data(oids, names, ips)
     logging.info("Data fetched from SNMP.")
 
+    # Update results with SNMP values
+    for i, data in enumerate(snmp_data):
+        results[i]['value'] = data['value']
+
     # Start a background thread to update and save sensor data
     thread = Thread(target=update_and_save_sensors, args=(results, snmp_data))
     thread.start()
@@ -116,9 +120,31 @@ def get_sensors():
 
     return jsonify(results)
 
-if __name__ == '__main__':
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(get_sensors, 'interval', minutes=3)  # Run every 5 minutes
-    scheduler.start()
+@app.route('/api/UpdateSeuils', methods=['POST'])
+def update_seuils():
+    try:
+        data = request.json  # Récupère les données JSON envoyées par le frontend
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        logging.info("*********************************")
+        logging.info(data)
+        for key, sensors in data.items():
+            for sensor in sensors:
+                update_query = """
+                    UPDATE sensors
+                    SET high_threshold = %s, low_threshold = %s
+                    WHERE id = %s
+                """
+                cursor.execute(update_query, (sensor['high_threshold'], sensor['low_threshold'], sensor['id']))
 
-    app.run(debug=True, host='0.0.0.0', port=5000)
+        connection.commit()
+        cursor.close()
+        connection.close()
+        return jsonify({"message": "Thresholds updated successfully"}), 200
+    except Exception as e:
+        logging.error(f"Error updating thresholds: {e}")
+        return jsonify({"error": str(e)}), 500 
+    
+if __name__ == '__main__':
+
+    app.run(debug=True, host='0.0.0.0', port=5000) 
