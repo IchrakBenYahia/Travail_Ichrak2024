@@ -6,21 +6,25 @@ import logo from "./assets/Logo.png";
 const DataDisplay = () => {
     const [data, setData] = useState([]);
 
+    const fetchData = async () => {
+        try {
+            const response = await axios.get('http://localhost:5000/api/sensors');
+            //const response = await axios.get('/backend/api/sensors');
+            console.log(response.data); 
+            setData(response.data);
+        } catch (error) {
+            console.error('Erreur lors de la récupération des données:', error);
+        }
+    };
+
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const response = await axios.get('http://localhost:5000/api/sensors');
-                //const response = await axios.get('/backend/api/sensors');
-                console.log(response.data); 
-                setData(response.data);
-            } catch (error) {
-                console.error('Erreur lors de la récupération des données:', error);
-            }
-        };
-
         fetchData();
+        const interval = setInterval(() => {
+            fetchData();
+        }, 50000); // Rafraîchir toutes les 5 minutes (300000 ms)
+        return () => clearInterval(interval); // Nettoyage du setInterval lors du démontage du composant
     }, []);
-
+    
     // Fonction pour extraire le préfixe de base sans le type de capteur
     const extractBasePrefix = (name) => {
         const parts = name.split('_');
@@ -55,7 +59,38 @@ const extractBasePrefixName = (name) => {
     return originalName; // Retourne le nom d'origine si aucune condition n'est remplie
 };
 
+    const renderValue = (sensor ) => {
+        if (sensor.value === 'Error: No SNMP response received before timeout') {
+            return <span style={{ color: 'red' }}>Erreur</span>;
+        }
 
+        let val = parseFloat(sensor.value);
+
+        const isNumeric = !isNaN(val) && isFinite(val);
+        const isOutOfRange = isNumeric && (val < sensor.low_threshold || val > sensor.high_threshold);
+
+        return <span style={{ color: isOutOfRange ? 'red' : '#4CAF50' }}>{val}{sensor.unit}</span>;
+    };
+    
+    function convertSeconds(seconds) {
+        // Convertir l'entrée en nombre, au cas où elle serait une chaîne
+        seconds = Number(seconds);
+    
+        // Vérifier si l'entrée est maintenant un nombre valide
+        if (!isNaN(seconds)) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+    
+            return <span style={{ color: 'blue' }}>{`${hours} heures, ${minutes} minutes, ${secs} secondes`}</span>;
+        } else {
+            return <span style={{ color: 'red' }}>Erreur</span>;
+        }
+    }
+
+    const handleSeuilChange = (name, newSeuil) => {
+        console.log(groupedData)
+    };  
 
     // Regrouper les capteurs en fonction de leur groupe
     const groupedData = data.reduce((groups, sensor) => {
@@ -109,7 +144,6 @@ const extractBasePrefixName = (name) => {
             }
             groups[basePrefix].push(sensor);
         }
-        console.log(groups)
         return groups;
     }, {});
 
@@ -134,9 +168,33 @@ const extractBasePrefixName = (name) => {
                                                     </td>
                                                 )}
                                                 <td>{extractBasePrefixName(sensor.name)}</td>
-                                                <td>{sensor.value}{sensor.unit}</td>
-                                                <td>{sensor.high_threshold}</td>
-                                                <td>{sensor.low_threshold}</td>
+                                                <td>{renderValue(sensor)}</td>
+                                                <td>
+                                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                        <input
+                                                            type="number"
+                                                            className="form-control"
+                                                            style={{ width: '40px', padding: '0 10px' ,border: 'none'}}
+                                                            aria-label="Seuil minimum"
+                                                            aria-describedby="inputGroup-sizing-sm"
+                                                            value={sensor.high_threshold}
+                                                            onChange={(e) => handleSeuilChange(sensor.name, { high_threshold: e.target.value })}
+                                                        />
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                        <input
+                                                            type="number"
+                                                            className="form-control"
+                                                            style={{ width: '40px',  padding: '0 10px' ,border: 'none'}}
+                                                            aria-label="Seuil minimum"
+                                                            aria-describedby="inputGroup-sizing-sm"
+                                                            value={sensor.low_threshold}
+                                                            onChange={(e) => handleSeuilChange(sensor.name, { low_threshold: e.target.value })}
+                                                        />
+                                                    </div>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -152,14 +210,38 @@ const extractBasePrefixName = (name) => {
                                 {groupedData["Humidite"]?.map((sensor, sensorIndex) => (
                                     <tr key={sensorIndex}>
                                         {sensorIndex === 0 && (
-                                            <td rowSpan={groupedData["Humidite"].length}  className="sensor-name-column vertical-text">
-                                                Humidité racks
+                                            <td rowSpan={groupedData["Humidite"].length} style={{ color: 'blue' }} className="sensor-name-column vertical-text">
+                                                Humidité
                                             </td>
                                         )}
                                         <td>{extractBasePrefixName(sensor.name)}</td>
-                                        <td>{sensor.value}{sensor.unit}</td>
-                                        <td>{sensor.high_threshold}</td>
-                                        <td>{sensor.low_threshold}</td>
+                                        <td>{renderValue(sensor)}</td>
+                                        <td>
+                                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                <input
+                                                    type="number"
+                                                    className="form-control"
+                                                    style={{ width: '40px',   padding: '0 10px' ,border: 'none'}}
+                                                    aria-label="Seuil minimum"
+                                                    aria-describedby="inputGroup-sizing-sm"
+                                                    value={sensor.high_threshold}
+                                                    onChange={(e) => handleSeuilChange(sensor.name, { high_threshold: e.target.value })}
+                                                />
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                <input
+                                                    type="number"
+                                                    className="form-control"
+                                                    style={{ width: '40px',   padding: '0 10px' ,border: 'none'}}
+                                                    aria-label="Seuil minimum"
+                                                    aria-describedby="inputGroup-sizing-sm"
+                                                    value={sensor.low_threshold}
+                                                    onChange={(e) => handleSeuilChange(sensor.name, { low_threshold: e.target.value })}
+                                                />
+                                            </div>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -172,20 +254,52 @@ const extractBasePrefixName = (name) => {
                                 {groupedData["Onduleur_A_ENTREE"]?.map((sensor, sensorIndex) => (
                                     <tr key={sensorIndex}>
                                         <td>{sensor.name}</td>
-                                        <td>{sensor.value}{sensor.unit}</td>
-                                        <td>{sensor.high_threshold}</td>
-                                        <td>{sensor.low_threshold}</td>
+                                        <td>{renderValue(sensor)}</td>
+                                        <td>
+                                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                <input
+                                                    type="number"
+                                                    className="form-control"
+                                                    style={{ width: '40px',   padding: '0 10px' ,border: 'none'}}
+                                                    aria-label="Seuil minimum"
+                                                    aria-describedby="inputGroup-sizing-sm"
+                                                    value={sensor.high_threshold}
+                                                    onChange={(e) => handleSeuilChange(sensor.name, { high_threshold: e.target.value })}
+                                                />
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                <input
+                                                    type="number"
+                                                    className="form-control"
+                                                    style={{ width: '40px',   padding: '0 10px' ,border: 'none'}}
+                                                    aria-label="Seuil minimum"
+                                                    aria-describedby="inputGroup-sizing-sm"
+                                                    value={sensor.low_threshold}
+                                                    onChange={(e) => handleSeuilChange(sensor.name, { low_threshold: e.target.value })}
+                                                />
+                                            </div>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                         <br></br>
-                        <h5 className="text">Autonomie</h5>
+                        <h5 style={{ color: 'blue' }} className="text">Autonomie</h5>
                         <table>
                             <tbody>
                                 {groupedData["Onduleur_A_Autonomie"]?.map((sensor, sensorIndex) => (
                                     <tr key={sensorIndex}>
-                                        <td>{sensor.value}{sensor.unit}</td>
+                                        <td>
+                                        {sensor.value === 'Error: No SNMP response received before timeout' ? (
+                                            <span style={{ color: 'red' }}>Erreur</span>
+                                        ) : (
+                                            <span style={{ color: 'blue' }}>
+                                                {convertSeconds(sensor.value)} ({sensor.value})
+                                            </span>
+                                        )}
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -196,9 +310,33 @@ const extractBasePrefixName = (name) => {
                                 {groupedData["Onduleur_A_SORTIE"]?.map((sensor, sensorIndex) => (
                                     <tr key={sensorIndex}>
                                         <td>{sensor.name}</td>
-                                        <td>{sensor.value}{sensor.unit}</td>
-                                        <td>{sensor.high_threshold}</td>
-                                        <td>{sensor.low_threshold}</td>
+                                        <td>{renderValue(sensor)}</td>
+                                        <td>
+                                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                <input
+                                                    type="number"
+                                                    className="form-control"
+                                                    style={{ width: '40px',   padding: '0 10px' ,border: 'none'}}
+                                                    aria-label="Seuil minimum"
+                                                    aria-describedby="inputGroup-sizing-sm"
+                                                    value={sensor.high_threshold}
+                                                    onChange={(e) => handleSeuilChange(sensor.name, { high_threshold: e.target.value })}
+                                                />
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                <input
+                                                    type="number"
+                                                    className="form-control"
+                                                    style={{ width: '40px',   padding: '0 10px' ,border: 'none'}}
+                                                    aria-label="Seuil minimum"
+                                                    aria-describedby="inputGroup-sizing-sm"
+                                                    value={sensor.low_threshold}
+                                                    onChange={(e) => handleSeuilChange(sensor.name, { low_threshold: e.target.value })}
+                                                />
+                                            </div>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -211,20 +349,52 @@ const extractBasePrefixName = (name) => {
                                 {groupedData["Onduleur_B_ENTREE"]?.map((sensor, sensorIndex) => (
                                     <tr key={sensorIndex}>
                                         <td>{sensor.name}</td>
-                                        <td>{sensor.value}{sensor.unit}</td>
-                                        <td>{sensor.high_threshold}</td>
-                                        <td>{sensor.low_threshold}</td>
+                                        <td>{renderValue(sensor)}</td>
+                                        <td>
+                                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                <input
+                                                    type="number"
+                                                    className="form-control"
+                                                    style={{ width: '40px',   padding: '0 10px' ,border: 'none'}}
+                                                    aria-label="Seuil minimum"
+                                                    aria-describedby="inputGroup-sizing-sm"
+                                                    value={sensor.high_threshold}
+                                                    onChange={(e) => handleSeuilChange(sensor.name, { high_threshold: e.target.value })}
+                                                />
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                <input
+                                                    type="number"
+                                                    className="form-control"
+                                                    style={{ width: '40px',   padding: '0 10px' ,border: 'none'}}
+                                                    aria-label="Seuil minimum"
+                                                    aria-describedby="inputGroup-sizing-sm"
+                                                    value={sensor.low_threshold}
+                                                    onChange={(e) => handleSeuilChange(sensor.name, { low_threshold: e.target.value })}
+                                                />
+                                            </div>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                         <br></br>
-                        <h5 className="text">Autonomie</h5>
+                        <h5 style={{ color: 'blue' }} className="text">Autonomie</h5>
                         <table>
                             <tbody>
                                 {groupedData["Onduleur_B_Autonomie"]?.map((sensor, sensorIndex) => (
                                     <tr key={sensorIndex}>
-                                        <td>{sensor.value}{sensor.unit}</td>
+                                        <td>
+                                        {sensor.value === 'Error: No SNMP response received before timeout' ? (
+                                            <span style={{ color: 'red' }}>Erreur</span>
+                                        ) : (
+                                            <span style={{ color: 'blue' }}>
+                                                {convertSeconds(sensor.value)} ({sensor.value})
+                                            </span>
+                                        )}
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -235,9 +405,33 @@ const extractBasePrefixName = (name) => {
                                 {groupedData["Onduleur_B_SORTIE"]?.map((sensor, sensorIndex) => (
                                     <tr key={sensorIndex}>
                                         <td>{sensor.name}</td>
-                                        <td>{sensor.value}{sensor.unit}</td>
-                                        <td>{sensor.high_threshold}</td>
-                                        <td>{sensor.low_threshold}</td>
+                                        <td>{renderValue(sensor)}</td>
+                                        <td>
+                                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                <input
+                                                    type="number"
+                                                    className="form-control"
+                                                    style={{ width: '40px',   padding: '0 10px' ,border: 'none'}}
+                                                    aria-label="Seuil minimum"
+                                                    aria-describedby="inputGroup-sizing-sm"
+                                                    value={sensor.high_threshold}
+                                                    onChange={(e) => handleSeuilChange(sensor.name, { high_threshold: e.target.value })}
+                                                />
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                <input
+                                                    type="number"
+                                                    className="form-control"
+                                                    style={{ width: '40px',   padding: '0 10px' ,border: 'none'}}
+                                                    aria-label="Seuil minimum"
+                                                    aria-describedby="inputGroup-sizing-sm"
+                                                    value={sensor.low_threshold}
+                                                    onChange={(e) => handleSeuilChange(sensor.name, { low_threshold: e.target.value })}
+                                                />
+                                            </div>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -257,9 +451,33 @@ const extractBasePrefixName = (name) => {
                                                     </td>
                                                 )}
                                                 <td>{sensor.name}</td>
-                                                <td>{sensor.value}{sensor.unit}</td>
-                                                <td>{sensor.high_threshold}</td>
-                                                <td>{sensor.low_threshold}</td>
+                                                <td>{renderValue(sensor)}</td>
+                                                <td>
+                                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                        <input
+                                                            type="number"
+                                                            className="form-control"
+                                                            style={{ width: '40px',   padding: '0 10px' ,border: 'none'}}
+                                                            aria-label="Seuil minimum"
+                                                            aria-describedby="inputGroup-sizing-sm"
+                                                            value={sensor.high_threshold}
+                                                            onChange={(e) => handleSeuilChange(sensor.name, { high_threshold: e.target.value })}
+                                                        />
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                        <input
+                                                            type="number"
+                                                            className="form-control"
+                                                            style={{ width: '40px',   padding: '0 10px' ,border: 'none'}}
+                                                            aria-label="Seuil minimum"
+                                                            aria-describedby="inputGroup-sizing-sm"
+                                                            value={sensor.low_threshold}
+                                                            onChange={(e) => handleSeuilChange(sensor.name, { low_threshold: e.target.value })}
+                                                        />
+                                                    </div>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -285,9 +503,33 @@ const extractBasePrefixName = (name) => {
                                                     </td>
                                                 )}
                                                 <td>{extractBasePrefixName(sensor.name)}</td>
-                                                <td>{sensor.value}{sensor.unit}</td>
-                                                <td>{sensor.high_threshold}</td>
-                                                <td>{sensor.low_threshold}</td>
+                                                <td>{renderValue(sensor)}</td>
+                                                <td>
+                                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                        <input
+                                                            type="number"
+                                                            className="form-control"
+                                                            style={{ width: '40px',   padding: '0 10px' ,border: 'none'}}
+                                                            aria-label="Seuil minimum"
+                                                            aria-describedby="inputGroup-sizing-sm"
+                                                            value={sensor.high_threshold}
+                                                            onChange={(e) => handleSeuilChange(sensor.name, { high_threshold: e.target.value })}
+                                                        />
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                        <input
+                                                            type="number"
+                                                            className="form-control"
+                                                            style={{ width: '40px',   padding: '0 10px' ,border: 'none'}}
+                                                            aria-label="Seuil minimum"
+                                                            aria-describedby="inputGroup-sizing-sm"
+                                                            value={sensor.low_threshold}
+                                                            onChange={(e) => handleSeuilChange(sensor.name, { low_threshold: e.target.value })}
+                                                        />
+                                                    </div>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
