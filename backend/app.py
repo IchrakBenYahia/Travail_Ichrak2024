@@ -25,9 +25,9 @@ CORS(app)
 
 # Database configuration
 DB_CONFIG = {
-    'host': 'localhost',
+    'host': 'database',
     'user': 'root',
-    'password': '',
+    'password': 'pass',
     'database': 'monitoring'
 }
 
