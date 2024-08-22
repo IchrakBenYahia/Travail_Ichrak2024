@@ -5,7 +5,9 @@ import logo from "./assets/Logo.png";
 
 const DataDisplay = () => {
     const [data, setData] = useState([]);
-
+    const [Groups, setGroups] = useState({});
+    const [showAlert, setShowAlert] = useState(false);
+    
     const fetchData = async () => {
         try {
             const response = await axios.get('http://localhost:5000/api/sensors');
@@ -21,9 +23,10 @@ const DataDisplay = () => {
         fetchData();
         const interval = setInterval(() => {
             fetchData();
-        }, 50000); // Rafraîchir toutes les 5 minutes (300000 ms)
+        }, 180000); // Rafraîchir toutes les 3 minutes (3 * 60 000 ms)
         return () => clearInterval(interval); // Nettoyage du setInterval lors du démontage du composant
     }, []);
+
     
     // Fonction pour extraire le préfixe de base sans le type de capteur
     const extractBasePrefix = (name) => {
@@ -88,65 +91,92 @@ const extractBasePrefixName = (name) => {
         }
     }
 
-    const handleSeuilChange = (name, newSeuil) => {
-        console.log(groupedData)
-    };  
+    const saveSeuils = async () => {
+        try {
+            const response = await axios.post('http://localhost:5000/api/UpdateSeuils', Groups);
+            //const response = await axios.post('/backend/api/UpdateSeuils', Groups);
+            console.log('Thresholds saved successfully:', response.data);
+        } catch (err) {
+            console.log('Error saving thresholds:', err.response ? err.response.data : err.message);
+        }
+    };
+    
 
-    // Regrouper les capteurs en fonction de leur groupe
+    const handleSeuilChange = (key, id, newSeuil) => {
+        setGroups(prevGroups => {
+            // Créer une copie des données actuelles
+            const updatedGroups = { ...prevGroups };
+        
+            // Trouver l'array correspondant au `key`
+            const groupArray = updatedGroups[key];
+        
+            if (groupArray) {
+                // Trouver l'index de l'objet avec l'id correspondant
+                const objIndex = groupArray.findIndex(obj => obj.id === id);
+        
+                if (objIndex !== -1) {
+                    // Mettre à jour l'objet avec les nouvelles valeurs
+                    groupArray[objIndex] = { ...groupArray[objIndex], ...newSeuil };
+                }
+            }
+        
+            return updatedGroups;
+        });
+        
+        // Affiche les groupes mis à jour dans la console pour vérification
+        console.log(Groups);
+        
+        // Sauvegarde les changements dans la base de données
+        saveSeuils();
+    };    
+
+   // Regrouper les capteurs en fonction de leur groupe
+   useEffect(() => {
     const groupedData = data.reduce((groups, sensor) => {
         const name = sensor.name.toUpperCase();
-        const group= sensor.group_name.toUpperCase();
-        
+        const group = sensor.group_name.toUpperCase();
+
         if (name.includes("HUMIDITE")) {
-            if (!groups["Humidite"]) {
-                groups["Humidite"] = [];
-            }
+            groups["Humidite"] = groups["Humidite"] || [];
             groups["Humidite"].push(sensor);
         } else if (name.includes("ENTRÉE") || name.includes("ENTREE")) {
             const groupKey = group.includes("ONDULEUR A") ? "Onduleur_A_ENTREE" : "Onduleur_B_ENTREE";
-            if (!groups[groupKey]) {
-                groups[groupKey] = [];
-            }
+            groups[groupKey] = groups[groupKey] || [];
             groups[groupKey].push(sensor);
         } else if (name.includes("SORTIE")) {
             const groupKey = group.includes("ONDULEUR A") ? "Onduleur_A_SORTIE" : "Onduleur_B_SORTIE";
-            if (!groups[groupKey]) {
-                groups[groupKey] = [];
-            }
+            groups[groupKey] = groups[groupKey] || [];
             groups[groupKey].push(sensor);
         } else if (name.includes("AUTONOMIE")) {
             const groupKey = group.includes("ONDULEUR A") ? "Onduleur_A_Autonomie" : group.includes("ONDULEUR B") ? "Onduleur_B_Autonomie" : null;
-            if (!groups[groupKey]) {
-                groups[groupKey] = [];
+            if (groupKey) {
+                groups[groupKey] = groups[groupKey] || [];
+                groups[groupKey].push(sensor);
             }
-            groups[groupKey].push(sensor);
         } else if (name.includes("TENSION") || name.includes("COURANT")) {
             const groupKey = 
-            group.includes("PDU -B- R017") ? "PDU_B_R017" :
-            group.includes("PDU -A- R017") ? "PDU_A_R017" :
-            group.includes("PDU -A- R01") ? "PDU_A_R01" :
-            group.includes("PDU -B- R01") ? "PDU_B_R01" :
-            "Other"; // Valeur par défaut si aucune condition n'est remplie
-            if (!groups[groupKey]) {
-                groups[groupKey] = [];
-            }
+                group.includes("PDU -B- R017") ? "PDU_B_R017" :
+                group.includes("PDU -A- R017") ? "PDU_A_R017" :
+                group.includes("PDU -A- R01") ? "PDU_A_R01" :
+                group.includes("PDU -B- R01") ? "PDU_B_R01" :
+                "Other"; 
+            groups[groupKey] = groups[groupKey] || [];
             groups[groupKey].push(sensor);
         } else if (name.includes("SOUFFLAGE") || name.includes("REPRISE")) {
             const groupKey = name.includes("SOUFFLAGE") ? "Soufflage" : "Reprise";
-            if (!groups[groupKey]) {
-                groups[groupKey] = [];
-            }
+            groups[groupKey] = groups[groupKey] || [];
             groups[groupKey].push(sensor);
         } else if (name.includes("BAS") || name.includes("MILIEU") || name.includes("HAUT")) {
             const basePrefix = extractBasePrefix(name);
-            if (!groups[basePrefix]) {
-                groups[basePrefix] = [];
-            }
+            groups[basePrefix] = groups[basePrefix] || [];
             groups[basePrefix].push(sensor);
         }
+
         return groups;
     }, {});
 
+    setGroups(groupedData);
+}, [data]);
     return (
         <>
             <div className="logo-container">
@@ -156,14 +186,14 @@ const extractBasePrefixName = (name) => {
                 <div className="tables-wrapper">
                     <div className="group">
                         <h5 className="text">Températures racks</h5>
-                        {Object.keys(groupedData).filter(key => key.includes("DCM")).map((key, index) => (
+                        {Object.keys(Groups).filter(key => key.includes("DCM")).map((key, index) => (
                             <div key={index} className="temperature-group">
                                 <table>
                                     <tbody>
-                                        {groupedData[key].map((sensor, sensorIndex) => (
+                                        {Groups[key].map((sensor, sensorIndex) => (
                                             <tr key={sensorIndex}>
                                                 {sensorIndex === 0 && (
-                                                    <td rowSpan={groupedData[key].length}  className="sensor-name-column vertical-text">
+                                                    <td rowSpan={Groups[key].length}  className="sensor-name-column vertical-text">
                                                         {extractBasePrefixcapteur(key)}
                                                     </td>
                                                 )}
@@ -178,7 +208,7 @@ const extractBasePrefixName = (name) => {
                                                             aria-label="Seuil minimum"
                                                             aria-describedby="inputGroup-sizing-sm"
                                                             value={sensor.high_threshold}
-                                                            onChange={(e) => handleSeuilChange(sensor.name, { high_threshold: e.target.value })}
+                                                            onChange={(e) => handleSeuilChange(key,sensor.id, { high_threshold: e.target.value })}
                                                         />
                                                     </div>
                                                 </td>
@@ -191,7 +221,7 @@ const extractBasePrefixName = (name) => {
                                                             aria-label="Seuil minimum"
                                                             aria-describedby="inputGroup-sizing-sm"
                                                             value={sensor.low_threshold}
-                                                            onChange={(e) => handleSeuilChange(sensor.name, { low_threshold: e.target.value })}
+                                                            onChange={(e) => handleSeuilChange(key,sensor.id,{ low_threshold: e.target.value })}
                                                         />
                                                     </div>
                                                 </td>
@@ -207,10 +237,10 @@ const extractBasePrefixName = (name) => {
                         <h5 className="text">Humidité racks</h5>
                         <table>
                             <tbody>
-                                {groupedData["Humidite"]?.map((sensor, sensorIndex) => (
+                                {Groups["Humidite"]?.map((sensor, sensorIndex) => (
                                     <tr key={sensorIndex}>
                                         {sensorIndex === 0 && (
-                                            <td rowSpan={groupedData["Humidite"].length} style={{ color: 'blue' }} className="sensor-name-column vertical-text">
+                                            <td rowSpan={Groups["Humidite"].length} style={{ color: 'blue' }} className="sensor-name-column vertical-text">
                                                 Humidité
                                             </td>
                                         )}
@@ -225,7 +255,7 @@ const extractBasePrefixName = (name) => {
                                                     aria-label="Seuil minimum"
                                                     aria-describedby="inputGroup-sizing-sm"
                                                     value={sensor.high_threshold}
-                                                    onChange={(e) => handleSeuilChange(sensor.name, { high_threshold: e.target.value })}
+                                                    onChange={(e) => handleSeuilChange("Humidite",sensor.id, { high_threshold: e.target.value })}
                                                 />
                                             </div>
                                         </td>
@@ -238,7 +268,7 @@ const extractBasePrefixName = (name) => {
                                                     aria-label="Seuil minimum"
                                                     aria-describedby="inputGroup-sizing-sm"
                                                     value={sensor.low_threshold}
-                                                    onChange={(e) => handleSeuilChange(sensor.name, { low_threshold: e.target.value })}
+                                                    onChange={(e) => handleSeuilChange("Humidite", sensor.id, { low_threshold: e.target.value })}
                                                 />
                                             </div>
                                         </td>
@@ -251,7 +281,7 @@ const extractBasePrefixName = (name) => {
                         <h5 className="text">Onduleur A</h5>
                         <table>
                             <tbody>
-                                {groupedData["Onduleur_A_ENTREE"]?.map((sensor, sensorIndex) => (
+                                {Groups["Onduleur_A_ENTREE"]?.map((sensor, sensorIndex) => (
                                     <tr key={sensorIndex}>
                                         <td>{sensor.name}</td>
                                         <td>{renderValue(sensor)}</td>
@@ -264,7 +294,7 @@ const extractBasePrefixName = (name) => {
                                                     aria-label="Seuil minimum"
                                                     aria-describedby="inputGroup-sizing-sm"
                                                     value={sensor.high_threshold}
-                                                    onChange={(e) => handleSeuilChange(sensor.name, { high_threshold: e.target.value })}
+                                                    onChange={(e) => handleSeuilChange("Onduleur_A_ENTREE",sensor.id, { high_threshold: e.target.value })}
                                                 />
                                             </div>
                                         </td>
@@ -277,7 +307,7 @@ const extractBasePrefixName = (name) => {
                                                     aria-label="Seuil minimum"
                                                     aria-describedby="inputGroup-sizing-sm"
                                                     value={sensor.low_threshold}
-                                                    onChange={(e) => handleSeuilChange(sensor.name, { low_threshold: e.target.value })}
+                                                    onChange={(e) => handleSeuilChange("Onduleur_A_ENTREE",sensor.id, { low_threshold: e.target.value })}
                                                 />
                                             </div>
                                         </td>
@@ -289,7 +319,7 @@ const extractBasePrefixName = (name) => {
                         <h5 style={{ color: 'blue' }} className="text">Autonomie</h5>
                         <table>
                             <tbody>
-                                {groupedData["Onduleur_A_Autonomie"]?.map((sensor, sensorIndex) => (
+                                {Groups["Onduleur_A_Autonomie"]?.map((sensor, sensorIndex) => (
                                     <tr key={sensorIndex}>
                                         <td>
                                         {sensor.value === 'Error: No SNMP response received before timeout' ? (
@@ -307,7 +337,7 @@ const extractBasePrefixName = (name) => {
                         <br></br>
                         <table>
                             <tbody>
-                                {groupedData["Onduleur_A_SORTIE"]?.map((sensor, sensorIndex) => (
+                                {Groups["Onduleur_A_SORTIE"]?.map((sensor, sensorIndex) => (
                                     <tr key={sensorIndex}>
                                         <td>{sensor.name}</td>
                                         <td>{renderValue(sensor)}</td>
@@ -320,7 +350,7 @@ const extractBasePrefixName = (name) => {
                                                     aria-label="Seuil minimum"
                                                     aria-describedby="inputGroup-sizing-sm"
                                                     value={sensor.high_threshold}
-                                                    onChange={(e) => handleSeuilChange(sensor.name, { high_threshold: e.target.value })}
+                                                    onChange={(e) => handleSeuilChange("Onduleur_A_SORTIE",sensor.id, { high_threshold: e.target.value })}
                                                 />
                                             </div>
                                         </td>
@@ -333,7 +363,7 @@ const extractBasePrefixName = (name) => {
                                                     aria-label="Seuil minimum"
                                                     aria-describedby="inputGroup-sizing-sm"
                                                     value={sensor.low_threshold}
-                                                    onChange={(e) => handleSeuilChange(sensor.name, { low_threshold: e.target.value })}
+                                                    onChange={(e) => handleSeuilChange("Onduleur_A_SORTIE",sensor.id, { low_threshold: e.target.value })}
                                                 />
                                             </div>
                                         </td>
@@ -346,7 +376,7 @@ const extractBasePrefixName = (name) => {
                         <h5 className="text">Onduleur B</h5>
                         <table>
                             <tbody>
-                                {groupedData["Onduleur_B_ENTREE"]?.map((sensor, sensorIndex) => (
+                                {Groups["Onduleur_B_ENTREE"]?.map((sensor, sensorIndex) => (
                                     <tr key={sensorIndex}>
                                         <td>{sensor.name}</td>
                                         <td>{renderValue(sensor)}</td>
@@ -359,7 +389,7 @@ const extractBasePrefixName = (name) => {
                                                     aria-label="Seuil minimum"
                                                     aria-describedby="inputGroup-sizing-sm"
                                                     value={sensor.high_threshold}
-                                                    onChange={(e) => handleSeuilChange(sensor.name, { high_threshold: e.target.value })}
+                                                    onChange={(e) => handleSeuilChange("Onduleur_B_ENTREE",sensor.id, { high_threshold: e.target.value })}
                                                 />
                                             </div>
                                         </td>
@@ -372,7 +402,7 @@ const extractBasePrefixName = (name) => {
                                                     aria-label="Seuil minimum"
                                                     aria-describedby="inputGroup-sizing-sm"
                                                     value={sensor.low_threshold}
-                                                    onChange={(e) => handleSeuilChange(sensor.name, { low_threshold: e.target.value })}
+                                                    onChange={(e) => handleSeuilChange("Onduleur_B_ENTREE",sensor.id, { low_threshold: e.target.value })}
                                                 />
                                             </div>
                                         </td>
@@ -384,7 +414,7 @@ const extractBasePrefixName = (name) => {
                         <h5 style={{ color: 'blue' }} className="text">Autonomie</h5>
                         <table>
                             <tbody>
-                                {groupedData["Onduleur_B_Autonomie"]?.map((sensor, sensorIndex) => (
+                                {Groups["Onduleur_B_Autonomie"]?.map((sensor, sensorIndex) => (
                                     <tr key={sensorIndex}>
                                         <td>
                                         {sensor.value === 'Error: No SNMP response received before timeout' ? (
@@ -402,7 +432,7 @@ const extractBasePrefixName = (name) => {
                         <br></br>
                         <table>
                             <tbody>
-                                {groupedData["Onduleur_B_SORTIE"]?.map((sensor, sensorIndex) => (
+                                {Groups["Onduleur_B_SORTIE"]?.map((sensor, sensorIndex) => (
                                     <tr key={sensorIndex}>
                                         <td>{sensor.name}</td>
                                         <td>{renderValue(sensor)}</td>
@@ -415,7 +445,7 @@ const extractBasePrefixName = (name) => {
                                                     aria-label="Seuil minimum"
                                                     aria-describedby="inputGroup-sizing-sm"
                                                     value={sensor.high_threshold}
-                                                    onChange={(e) => handleSeuilChange(sensor.name, { high_threshold: e.target.value })}
+                                                    onChange={(e) => handleSeuilChange("Onduleur_B_SORTIE",sensor.id,{ high_threshold: e.target.value })}
                                                 />
                                             </div>
                                         </td>
@@ -428,7 +458,7 @@ const extractBasePrefixName = (name) => {
                                                     aria-label="Seuil minimum"
                                                     aria-describedby="inputGroup-sizing-sm"
                                                     value={sensor.low_threshold}
-                                                    onChange={(e) => handleSeuilChange(sensor.name, { low_threshold: e.target.value })}
+                                                    onChange={(e) => handleSeuilChange("Onduleur_B_SORTIE",sensor.id, { low_threshold: e.target.value })}
                                                 />
                                             </div>
                                         </td>
@@ -439,14 +469,14 @@ const extractBasePrefixName = (name) => {
                     </div>
                     <div className="group">
                         <h5 className="text">PDU</h5>
-                        {Object.keys(groupedData).filter(key => key.startsWith("PDU_")).map((key, index) => (
+                        {Object.keys(Groups).filter(key => key.startsWith("PDU_")).map((key, index) => (
                             <div key={index} className="pdu-group">
                                 <table>
                                     <tbody>
-                                        {groupedData[key].map((sensor, sensorIndex) => (
+                                        {Groups[key].map((sensor, sensorIndex) => (
                                             <tr key={sensorIndex}>
                                                 {sensorIndex === 0 && (
-                                                    <td rowSpan={groupedData[key].length}  className="sensor-name-column vertical-text">
+                                                    <td rowSpan={Groups[key].length}  className="sensor-name-column vertical-text">
                                                         {extractBasePrefixcapteur(key)}
                                                     </td>
                                                 )}
@@ -461,7 +491,7 @@ const extractBasePrefixName = (name) => {
                                                             aria-label="Seuil minimum"
                                                             aria-describedby="inputGroup-sizing-sm"
                                                             value={sensor.high_threshold}
-                                                            onChange={(e) => handleSeuilChange(sensor.name, { high_threshold: e.target.value })}
+                                                            onChange={(e) => handleSeuilChange(key,sensor.id, { high_threshold: e.target.value })}
                                                         />
                                                     </div>
                                                 </td>
@@ -474,7 +504,7 @@ const extractBasePrefixName = (name) => {
                                                             aria-label="Seuil minimum"
                                                             aria-describedby="inputGroup-sizing-sm"
                                                             value={sensor.low_threshold}
-                                                            onChange={(e) => handleSeuilChange(sensor.name, { low_threshold: e.target.value })}
+                                                            onChange={(e) => handleSeuilChange(key,sensor.id, { low_threshold: e.target.value })}
                                                         />
                                                     </div>
                                                 </td>
@@ -488,17 +518,17 @@ const extractBasePrefixName = (name) => {
                     </div>
                     <div className="group">
                         <h5 className="text">REFROIDISSEMENT</h5>
-                        {Object.keys(groupedData)
+                        {Object.keys(Groups)
                                 .filter(key => key.startsWith("Soufflage") || key.startsWith("Reprise"))
                                 .map((key, index) => (
                             <div key={index} className="cooling-group">
                                 <h5 className="text">{key}</h5>
                                 <table>
                                     <tbody>
-                                        {groupedData[key].map((sensor, sensorIndex) => (
+                                        {Groups[key].map((sensor, sensorIndex) => (
                                             <tr key={sensorIndex}>
                                                 {sensorIndex === 0 && (
-                                                    <td rowSpan={groupedData[key].length} className="sensor-name-column vertical-text">
+                                                    <td rowSpan={Groups[key].length} className="sensor-name-column vertical-text">
                                                         Climatisation
                                                     </td>
                                                 )}
@@ -513,7 +543,7 @@ const extractBasePrefixName = (name) => {
                                                             aria-label="Seuil minimum"
                                                             aria-describedby="inputGroup-sizing-sm"
                                                             value={sensor.high_threshold}
-                                                            onChange={(e) => handleSeuilChange(sensor.name, { high_threshold: e.target.value })}
+                                                            onChange={(e) => handleSeuilChange(extractBasePrefixName(sensor.name),sensor.id, { high_threshold: e.target.value })}
                                                         />
                                                     </div>
                                                 </td>
@@ -526,7 +556,7 @@ const extractBasePrefixName = (name) => {
                                                             aria-label="Seuil minimum"
                                                             aria-describedby="inputGroup-sizing-sm"
                                                             value={sensor.low_threshold}
-                                                            onChange={(e) => handleSeuilChange(sensor.name, { low_threshold: e.target.value })}
+                                                            onChange={(e) => handleSeuilChange(extractBasePrefixName(sensor.name),sensor.id,{ low_threshold: e.target.value })}
                                                         />
                                                     </div>
                                                 </td>
