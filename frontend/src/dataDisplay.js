@@ -1,12 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import "./dataDisplay.css";
 import logo from "./assets/Logo.png";
+import debounce from 'lodash/debounce';
 
 const DataDisplay = () => {
     const [data, setData] = useState([]);
     const [Groups, setGroups] = useState({});
-    const [showAlert, setShowAlert] = useState(false);
     
     const fetchData = async () => {
         try {
@@ -35,12 +35,12 @@ const DataDisplay = () => {
     };
 
     // Fonction pour extraire et formater le préfixe de base
-const extractBasePrefixcapteur = (name) => {
-    const originalName = name; // Conserver le nom d'origine pour retour
-
-    const match = name.match(/RACK\d+/); // Trouve le motif RACK suivi de chiffres
-    return match ? match[0] : originalName; // Retourne le match ou le nom d'origine si aucun match
-    }
+    const extractBasePrefixcapteur = useCallback((name) => {
+        const originalName = name;
+        const match = name.match(/RACK\d+/);
+        return match ? match[0] : originalName;
+    }, []);
+    
 // Fonction pour extraire et formater le préfixe de base
 const extractBasePrefixName = (name) => {
     const originalName = name; // Conserver le nom d'origine pour retour
@@ -100,9 +100,8 @@ const extractBasePrefixName = (name) => {
             console.log('Error saving thresholds:', err.response ? err.response.data : err.message);
         }
     };
-    
 
-    const handleSeuilChange = (key, id, newSeuil) => {
+    const handleSeuilChange =debounce((key, id, newSeuil) => {
         setGroups(prevGroups => {
             // Créer une copie des données actuelles
             const updatedGroups = { ...prevGroups };
@@ -128,7 +127,7 @@ const extractBasePrefixName = (name) => {
         
         // Sauvegarde les changements dans la base de données
         saveSeuils();
-    };    
+    }, 300);  // 300ms delay   
 
    // Regrouper les capteurs en fonction de leur groupe
    useEffect(() => {
