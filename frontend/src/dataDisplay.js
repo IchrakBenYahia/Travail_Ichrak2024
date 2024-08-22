@@ -10,8 +10,8 @@ const DataDisplay = () => {
     
     const fetchData = async () => {
         try {
-            const response = await axios.get('http://localhost:5000/api/sensors');
-            //const response = await axios.get('/backend/api/sensors');
+            //const response = await axios.get('http://localhost:5000/api/sensors');
+            const response = await axios.get('/backend/api/sensors');
             console.log(response.data); 
             setData(response.data);
         } catch (error) {
@@ -93,8 +93,8 @@ const extractBasePrefixName = (name) => {
 
     const saveSeuils = async () => {
         try {
-            const response = await axios.post('http://localhost:5000/api/UpdateSeuils', Groups);
-            //const response = await axios.post('/backend/api/UpdateSeuils', Groups);
+            //const response = await axios.post('http://localhost:5000/api/UpdateSeuils', Groups);
+            const response = await axios.post('/backend/api/UpdateSeuils', Groups);
             console.log('Thresholds saved successfully:', response.data);
         } catch (err) {
             console.log('Error saving thresholds:', err.response ? err.response.data : err.message);
