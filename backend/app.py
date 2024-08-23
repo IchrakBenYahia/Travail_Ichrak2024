@@ -26,14 +26,16 @@ app = Flask(__name__)
 CORS(app)
 
 dbconfig = {
+    #'host': 'localhost',
     'host': 'database',
     'user': 'root',
+    #'password': '',
     'password': 'pass',
     'database': 'monitoring'
 }
 
 connection_pool = pooling.MySQLConnectionPool(pool_name="mypool",
-                                              pool_size=5,
+                                              pool_size=32,
                                               **dbconfig)
 
 def get_db_connection():
@@ -140,8 +142,7 @@ def update_seuils():
         data = request.json  # Récupère les données JSON envoyées par le frontend
         connection = get_db_connection()
         cursor = connection.cursor()
-        logging.info("*********************************")
-        logging.info(data)
+        
         for key, sensors in data.items():
             for sensor in sensors:
                 update_query = """
