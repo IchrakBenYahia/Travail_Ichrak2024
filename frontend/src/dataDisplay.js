@@ -23,7 +23,7 @@ const DataDisplay = () => {
         fetchData();
         const interval = setInterval(() => {
             fetchData();
-        }, 180000); // Rafraîchir toutes les 3 minutes (3 * 60 000 ms)
+        }, 60000); // Rafraîchir toutes les 1 minute (60 000 ms)
         return () => clearInterval(interval); // Nettoyage du setInterval lors du démontage du composant
     }, []);
 
@@ -68,28 +68,36 @@ const extractBasePrefixName = (name) => {
         }
 
         let val = parseFloat(sensor.value);
-
+        const name = sensor.name.toUpperCase();
         const isNumeric = !isNaN(val) && isFinite(val);
-        const isOutOfRange = isNumeric && (val < sensor.low_threshold || val > sensor.high_threshold);
 
+        const isOutOfRange = isNumeric && (val > sensor.high_threshold || val < sensor.low_threshold);
+        if  (name.includes("SOUFFLAGE") || name.includes("REPRISE") || name.includes("COURANT")){val=val/10;}
         return <span style={{ color: isOutOfRange ? 'red' : '#4CAF50' }}>{val}{sensor.unit}</span>;
     };
-    
+
     function convertSeconds(seconds) {
         // Convertir l'entrée en nombre, au cas où elle serait une chaîne
         seconds = Number(seconds);
     
         // Vérifier si l'entrée est maintenant un nombre valide
-        if (!isNaN(seconds)) {
+        if (!isNaN(seconds) && seconds >= 0) {
             const hours = Math.floor(seconds / 3600);
             const minutes = Math.floor((seconds % 3600) / 60);
             const secs = seconds % 60;
     
-            return <span style={{ color: 'blue' }}>{`${hours} heures, ${minutes} minutes, ${secs} secondes`}</span>;
+            // Construire la chaîne de résultat avec les valeurs non nulles uniquement
+            let result = [];
+    
+            if (hours > 0) result.push(`${hours} heure${hours > 1 ? 's' : ''}`);
+            if (minutes > 0) result.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
+            if (secs > 0 || result.length === 0) result.push(`${secs} seconde${secs > 1 ? 's' : ''}`);
+    
+            return <span style={{ color: 'blue' }}>{result.join(', ')}</span>;
         } else {
             return <span style={{ color: 'red' }}>Erreur</span>;
         }
-    }
+    }    
 
     const saveSeuils = async () => {
         try {
@@ -125,9 +133,12 @@ const extractBasePrefixName = (name) => {
         // Affiche les groupes mis à jour dans la console pour vérification
         console.log(Groups);
         
-        // Sauvegarde les changements dans la base de données
+    }, 200);  // 200ms delay   
+
+    const handleBlur = () => {
+        // Sauvegarde les changements dans la base de données lorsque le focus est perdu
         saveSeuils();
-    }, 300);  // 300ms delay   
+    };
 
    // Regrouper les capteurs en fonction de leur groupe
    useEffect(() => {
@@ -175,6 +186,7 @@ const extractBasePrefixName = (name) => {
     }, {});
 
     setGroups(groupedData);
+    console.log(groupedData);
 }, [data]);
     return (
         <>
@@ -188,6 +200,15 @@ const extractBasePrefixName = (name) => {
                         {Object.keys(Groups).filter(key => key.includes("DCM")).map((key, index) => (
                             <div key={index} className="temperature-group">
                                 <table>
+                                    <thead>
+                                        <tr>
+                                            <td style={{ border: 'none' }}></td> {/* Cellule vide pour aligner */}
+                                            <td style={{ border: 'none' }}></td> {/* Cellule vide pour aligner */}
+                                            <td style={{ border: 'none' }}></td> {/* Cellule vide pour aligner */}
+                                            <td style={{ fontWeight: 'normal', border: 'none' }}>Seuil Max</td>
+                                            <td style={{ fontWeight: 'normal', border: 'none' }}>Seuil Min</td>
+                                        </tr>
+                                    </thead>
                                     <tbody>
                                         {Groups[key].map((sensor, sensorIndex) => (
                                             <tr key={sensorIndex}>
@@ -201,13 +222,14 @@ const extractBasePrefixName = (name) => {
                                                 <td>
                                                     <div style={{ display: 'flex', alignItems: 'center' }}>
                                                         <input
-                                                            type="number"
+                                                            type="number" 
                                                             className="form-control"
                                                             style={{ width: '40px', padding: '0 10px' ,border: 'none'}}
                                                             aria-label="Seuil minimum"
                                                             aria-describedby="inputGroup-sizing-sm"
                                                             value={sensor.high_threshold}
                                                             onChange={(e) => handleSeuilChange(key,sensor.id, { high_threshold: e.target.value })}
+                                                            onBlur={handleBlur}
                                                         />
                                                     </div>
                                                 </td>
@@ -221,6 +243,7 @@ const extractBasePrefixName = (name) => {
                                                             aria-describedby="inputGroup-sizing-sm"
                                                             value={sensor.low_threshold}
                                                             onChange={(e) => handleSeuilChange(key,sensor.id,{ low_threshold: e.target.value })}
+                                                            onBlur={handleBlur}
                                                         />
                                                     </div>
                                                 </td>
@@ -235,6 +258,16 @@ const extractBasePrefixName = (name) => {
                     <div className="group">
                         <h5 className="text">Humidité racks</h5>
                         <table>
+                            {Groups["Humidite"]? 
+                            <thead>
+                                <tr>
+                                    <td style={{ border: 'none' }}></td> {/* Cellule vide pour aligner */}
+                                    <td style={{ border: 'none' }}></td> {/* Cellule vide pour aligner */}
+                                    <td style={{ border: 'none' }}></td> {/* Cellule vide pour aligner */}
+                                    <td style={{ fontWeight: 'normal', border: 'none' }}>Seuil Max</td>
+                                    <td style={{ fontWeight: 'normal', border: 'none' }}>Seuil Min</td>
+                                </tr>
+                            </thead>:null}
                             <tbody>
                                 {Groups["Humidite"]?.map((sensor, sensorIndex) => (
                                     <tr key={sensorIndex}>
@@ -255,6 +288,7 @@ const extractBasePrefixName = (name) => {
                                                     aria-describedby="inputGroup-sizing-sm"
                                                     value={sensor.high_threshold}
                                                     onChange={(e) => handleSeuilChange("Humidite",sensor.id, { high_threshold: e.target.value })}
+                                                    onBlur={handleBlur}
                                                 />
                                             </div>
                                         </td>
@@ -268,6 +302,7 @@ const extractBasePrefixName = (name) => {
                                                     aria-describedby="inputGroup-sizing-sm"
                                                     value={sensor.low_threshold}
                                                     onChange={(e) => handleSeuilChange("Humidite", sensor.id, { low_threshold: e.target.value })}
+                                                    onBlur={handleBlur}
                                                 />
                                             </div>
                                         </td>
@@ -279,6 +314,15 @@ const extractBasePrefixName = (name) => {
                     <div className="group">
                         <h5 className="text">Onduleur A</h5>
                         <table>
+                        {Groups["Onduleur_A_ENTREE"]? 
+                            <thead>
+                                <tr>
+                                    <td style={{ border: 'none' }}></td> {/* Cellule vide pour aligner */}
+                                    <td style={{ border: 'none' }}></td> {/* Cellule vide pour aligner */}
+                                    <td style={{ fontWeight: 'normal', border: 'none' }}>Seuil Max</td>
+                                    <td style={{ fontWeight: 'normal', border: 'none' }}>Seuil Min</td>
+                                </tr>
+                            </thead> : null}
                             <tbody>
                                 {Groups["Onduleur_A_ENTREE"]?.map((sensor, sensorIndex) => (
                                     <tr key={sensorIndex}>
@@ -294,7 +338,8 @@ const extractBasePrefixName = (name) => {
                                                     aria-describedby="inputGroup-sizing-sm"
                                                     value={sensor.high_threshold}
                                                     onChange={(e) => handleSeuilChange("Onduleur_A_ENTREE",sensor.id, { high_threshold: e.target.value })}
-                                                />
+                                                    onBlur={handleBlur}
+                                               />
                                             </div>
                                         </td>
                                         <td>
@@ -307,6 +352,7 @@ const extractBasePrefixName = (name) => {
                                                     aria-describedby="inputGroup-sizing-sm"
                                                     value={sensor.low_threshold}
                                                     onChange={(e) => handleSeuilChange("Onduleur_A_ENTREE",sensor.id, { low_threshold: e.target.value })}
+                                                    onBlur={handleBlur}
                                                 />
                                             </div>
                                         </td>
@@ -335,6 +381,15 @@ const extractBasePrefixName = (name) => {
                         </table>
                         <br></br>
                         <table>
+                        {Groups["Onduleur_A_SORTIE"]?
+                            <thead>
+                                <tr>
+                                    <td style={{ border: 'none' }}></td> {/* Cellule vide pour aligner */}
+                                    <td style={{ border: 'none' }}></td> {/* Cellule vide pour aligner */}
+                                    <td style={{ fontWeight: 'normal', border: 'none' }}>Seuil Max</td>
+                                    <td style={{ fontWeight: 'normal', border: 'none' }}>Seuil Min</td>
+                                </tr>
+                            </thead> : null }
                             <tbody>
                                 {Groups["Onduleur_A_SORTIE"]?.map((sensor, sensorIndex) => (
                                     <tr key={sensorIndex}>
@@ -344,12 +399,14 @@ const extractBasePrefixName = (name) => {
                                             <div style={{ display: 'flex', alignItems: 'center' }}>
                                                 <input
                                                     type="number"
+                                                    step={sensor.name.includes("Courant") ? "0.1" : undefined} 
                                                     className="form-control"
                                                     style={{ width: '40px',   padding: '0 10px' ,border: 'none'}}
                                                     aria-label="Seuil minimum"
                                                     aria-describedby="inputGroup-sizing-sm"
                                                     value={sensor.high_threshold}
                                                     onChange={(e) => handleSeuilChange("Onduleur_A_SORTIE",sensor.id, { high_threshold: e.target.value })}
+                                                    onBlur={handleBlur}
                                                 />
                                             </div>
                                         </td>
@@ -357,12 +414,14 @@ const extractBasePrefixName = (name) => {
                                             <div style={{ display: 'flex', alignItems: 'center' }}>
                                                 <input
                                                     type="number"
+                                                    step={sensor.name.includes("Courant") ? "0.1" : undefined} 
                                                     className="form-control"
                                                     style={{ width: '40px',   padding: '0 10px' ,border: 'none'}}
                                                     aria-label="Seuil minimum"
                                                     aria-describedby="inputGroup-sizing-sm"
                                                     value={sensor.low_threshold}
                                                     onChange={(e) => handleSeuilChange("Onduleur_A_SORTIE",sensor.id, { low_threshold: e.target.value })}
+                                                    onBlur={handleBlur}
                                                 />
                                             </div>
                                         </td>
@@ -374,6 +433,15 @@ const extractBasePrefixName = (name) => {
                     <div className="group">
                         <h5 className="text">Onduleur B</h5>
                         <table>
+                        {Groups["Onduleur_B_ENTREE"]?
+                            <thead>
+                                <tr>
+                                    <td style={{ border: 'none' }}></td> {/* Cellule vide pour aligner */}
+                                    <td style={{ border: 'none' }}></td> {/* Cellule vide pour aligner */}
+                                    <td style={{ fontWeight: 'normal', border: 'none' }}>Seuil Max</td>
+                                    <td style={{ fontWeight: 'normal', border: 'none' }}>Seuil Min</td>
+                                </tr>
+                            </thead> : null }
                             <tbody>
                                 {Groups["Onduleur_B_ENTREE"]?.map((sensor, sensorIndex) => (
                                     <tr key={sensorIndex}>
@@ -389,6 +457,7 @@ const extractBasePrefixName = (name) => {
                                                     aria-describedby="inputGroup-sizing-sm"
                                                     value={sensor.high_threshold}
                                                     onChange={(e) => handleSeuilChange("Onduleur_B_ENTREE",sensor.id, { high_threshold: e.target.value })}
+                                                    onBlur={handleBlur}
                                                 />
                                             </div>
                                         </td>
@@ -402,6 +471,7 @@ const extractBasePrefixName = (name) => {
                                                     aria-describedby="inputGroup-sizing-sm"
                                                     value={sensor.low_threshold}
                                                     onChange={(e) => handleSeuilChange("Onduleur_B_ENTREE",sensor.id, { low_threshold: e.target.value })}
+                                                    onBlur={handleBlur}
                                                 />
                                             </div>
                                         </td>
@@ -430,6 +500,15 @@ const extractBasePrefixName = (name) => {
                         </table>
                         <br></br>
                         <table>
+                        {Groups["Onduleur_B_SORTIE"]?
+                            <thead>
+                                <tr>
+                                    <td style={{ border: 'none' }}></td> {/* Cellule vide pour aligner */}
+                                    <td style={{ border: 'none' }}></td> {/* Cellule vide pour aligner */}
+                                    <td style={{ fontWeight: 'normal', border: 'none' }}>Seuil Max</td>
+                                    <td style={{ fontWeight: 'normal', border: 'none' }}>Seuil Min</td>
+                                </tr>
+                            </thead> : null }
                             <tbody>
                                 {Groups["Onduleur_B_SORTIE"]?.map((sensor, sensorIndex) => (
                                     <tr key={sensorIndex}>
@@ -439,12 +518,14 @@ const extractBasePrefixName = (name) => {
                                             <div style={{ display: 'flex', alignItems: 'center' }}>
                                                 <input
                                                     type="number"
+                                                    step={sensor.name.includes("Courant") ? "0.1" : undefined} 
                                                     className="form-control"
                                                     style={{ width: '40px',   padding: '0 10px' ,border: 'none'}}
                                                     aria-label="Seuil minimum"
                                                     aria-describedby="inputGroup-sizing-sm"
                                                     value={sensor.high_threshold}
                                                     onChange={(e) => handleSeuilChange("Onduleur_B_SORTIE",sensor.id,{ high_threshold: e.target.value })}
+                                                    onBlur={handleBlur}
                                                 />
                                             </div>
                                         </td>
@@ -452,12 +533,14 @@ const extractBasePrefixName = (name) => {
                                             <div style={{ display: 'flex', alignItems: 'center' }}>
                                                 <input
                                                     type="number"
+                                                    step={sensor.name.includes("Courant") ? "0.1" : undefined} 
                                                     className="form-control"
                                                     style={{ width: '40px',   padding: '0 10px' ,border: 'none'}}
                                                     aria-label="Seuil minimum"
                                                     aria-describedby="inputGroup-sizing-sm"
                                                     value={sensor.low_threshold}
                                                     onChange={(e) => handleSeuilChange("Onduleur_B_SORTIE",sensor.id, { low_threshold: e.target.value })}
+                                                    onBlur={handleBlur}
                                                 />
                                             </div>
                                         </td>
@@ -471,6 +554,15 @@ const extractBasePrefixName = (name) => {
                         {Object.keys(Groups).filter(key => key.startsWith("PDU_")).map((key, index) => (
                             <div key={index} className="pdu-group">
                                 <table>
+                                    <thead>
+                                        <tr>
+                                            <td style={{ border: 'none' }}></td> {/* Cellule vide pour aligner */}
+                                            <td style={{ border: 'none' }}></td> {/* Cellule vide pour aligner */}
+                                            <td style={{ border: 'none' }}></td> {/* Cellule vide pour aligner */}
+                                            <td style={{ fontWeight: 'normal', border: 'none' }}>Seuil Max</td>
+                                            <td style={{ fontWeight: 'normal', border: 'none' }}>Seuil Min</td>
+                                        </tr>
+                                    </thead>
                                     <tbody>
                                         {Groups[key].map((sensor, sensorIndex) => (
                                             <tr key={sensorIndex}>
@@ -485,12 +577,14 @@ const extractBasePrefixName = (name) => {
                                                     <div style={{ display: 'flex', alignItems: 'center' }}>
                                                         <input
                                                             type="number"
+                                                            step={sensor.name.includes("Courant") ? "0.1" : undefined} 
                                                             className="form-control"
                                                             style={{ width: '40px',   padding: '0 10px' ,border: 'none'}}
                                                             aria-label="Seuil minimum"
                                                             aria-describedby="inputGroup-sizing-sm"
                                                             value={sensor.high_threshold}
                                                             onChange={(e) => handleSeuilChange(key,sensor.id, { high_threshold: e.target.value })}
+                                                            onBlur={handleBlur}
                                                         />
                                                     </div>
                                                 </td>
@@ -498,12 +592,14 @@ const extractBasePrefixName = (name) => {
                                                     <div style={{ display: 'flex', alignItems: 'center' }}>
                                                         <input
                                                             type="number"
+                                                            step={sensor.name.includes("Courant") ? "0.1" : undefined} 
                                                             className="form-control"
                                                             style={{ width: '40px',   padding: '0 10px' ,border: 'none'}}
                                                             aria-label="Seuil minimum"
                                                             aria-describedby="inputGroup-sizing-sm"
                                                             value={sensor.low_threshold}
                                                             onChange={(e) => handleSeuilChange(key,sensor.id, { low_threshold: e.target.value })}
+                                                            onBlur={handleBlur}
                                                         />
                                                     </div>
                                                 </td>
@@ -523,6 +619,15 @@ const extractBasePrefixName = (name) => {
                             <div key={index} className="cooling-group">
                                 <h5 className="text">{key}</h5>
                                 <table>
+                                    <thead>
+                                        <tr>
+                                            <td style={{ border: 'none' }}></td> {/* Cellule vide pour aligner */}
+                                            <td style={{ border: 'none' }}></td> {/* Cellule vide pour aligner */}
+                                            <td style={{ border: 'none' }}></td> {/* Cellule vide pour aligner */}
+                                            <td style={{ fontWeight: 'normal', border: 'none' }}>Seuil Max</td>
+                                            <td style={{ fontWeight: 'normal', border: 'none' }}>Seuil Min</td>
+                                        </tr>
+                                    </thead>
                                     <tbody>
                                         {Groups[key].map((sensor, sensorIndex) => (
                                             <tr key={sensorIndex}>
@@ -537,12 +642,14 @@ const extractBasePrefixName = (name) => {
                                                     <div style={{ display: 'flex', alignItems: 'center' }}>
                                                         <input
                                                             type="number"
+                                                            step="0.1" 
                                                             className="form-control"
-                                                            style={{ width: '40px',   padding: '0 10px' ,border: 'none'}}
+                                                            style={{ width: '50px',   padding: '0 10px' ,border: 'none'}}
                                                             aria-label="Seuil minimum"
                                                             aria-describedby="inputGroup-sizing-sm"
                                                             value={sensor.high_threshold}
-                                                            onChange={(e) => handleSeuilChange(extractBasePrefixName(sensor.name),sensor.id, { high_threshold: e.target.value })}
+                                                            onChange={(e) => handleSeuilChange(key,sensor.id, { high_threshold: e.target.value })}
+                                                            onBlur={handleBlur}
                                                         />
                                                     </div>
                                                 </td>
@@ -550,12 +657,14 @@ const extractBasePrefixName = (name) => {
                                                     <div style={{ display: 'flex', alignItems: 'center' }}>
                                                         <input
                                                             type="number"
+                                                            step="0.1" 
                                                             className="form-control"
-                                                            style={{ width: '40px',   padding: '0 10px' ,border: 'none'}}
+                                                            style={{ width: '50px',   padding: '0 10px' ,border: 'none'}}
                                                             aria-label="Seuil minimum"
                                                             aria-describedby="inputGroup-sizing-sm"
                                                             value={sensor.low_threshold}
-                                                            onChange={(e) => handleSeuilChange(extractBasePrefixName(sensor.name),sensor.id,{ low_threshold: e.target.value })}
+                                                            onChange={(e) => handleSeuilChange(key,sensor.id,{ low_threshold: e.target.value })}
+                                                            onBlur={handleBlur}
                                                         />
                                                     </div>
                                                 </td>
