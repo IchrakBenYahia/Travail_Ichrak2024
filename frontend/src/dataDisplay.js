@@ -70,9 +70,8 @@ const extractBasePrefixName = (name) => {
         let val = parseFloat(sensor.value);
         const name = sensor.name.toUpperCase();
         const isNumeric = !isNaN(val) && isFinite(val);
-
-        const isOutOfRange = isNumeric && (val > sensor.high_threshold || val < sensor.low_threshold);
         if  (name.includes("SOUFFLAGE") || name.includes("REPRISE") || name.includes("COURANT")){val=val/10;}
+        const isOutOfRange = isNumeric && (val > sensor.high_threshold || val < sensor.low_threshold);
         return <span style={{ color: isOutOfRange ? 'red' : '#4CAF50' }}>{val}{sensor.unit}</span>;
     };
 
@@ -82,6 +81,7 @@ const extractBasePrefixName = (name) => {
     
         // Vérifier si l'entrée est maintenant un nombre valide
         if (!isNaN(seconds) && seconds >= 0) {
+            seconds=seconds/100;
             const hours = Math.floor(seconds / 3600);
             const minutes = Math.floor((seconds % 3600) / 60);
             const secs = seconds % 60;
