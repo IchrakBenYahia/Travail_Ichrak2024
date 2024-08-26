@@ -18,6 +18,7 @@ from pysnmp.hlapi import (
 )
 from mysql.connector import pooling
 from concurrent.futures import ThreadPoolExecutor
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -44,6 +45,7 @@ def get_db_connection():
 
 def get_snmp_data(oids, oid_names, ips):
     def fetch_snmp(oid, name, ip):
+        time.sleep(0.5)  # Introduit un délai de 0.5 seconde entre chaque requête SNMP GET
         iterator = getCmd(
             SnmpEngine(),
             CommunityData('public', mpModel=0),
@@ -61,7 +63,8 @@ def get_snmp_data(oids, oid_names, ips):
                 oid_value = varBind[1].prettyPrint()
                 return {"name": name, "value": oid_value}
 
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    max_workers = min(32, len(oids))  # Dynamically set based on the number of OIDs/devices
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         results = list(executor.map(fetch_snmp, oids, oid_names, ips))
 
     return results
